@@ -558,9 +558,8 @@
             );
         }
 
-        // Main App Component
-        function App() {
-            const [authenticated, setAuthenticated] = useState(() => isAuthenticated());
+        // Dashboard Component (only rendered when authenticated)
+        function Dashboard({ onLogout }) {
             const [properties, setProperties] = useState([]);
             const [loading, setLoading] = useState(true);
             const [showForm, setShowForm] = useState(false);
@@ -576,20 +575,6 @@
                 possessionYear: "",
                 amenities: ""
             });
-
-            const handleLogin = () => {
-                setAuthenticated(true);
-            };
-
-            const handleLogout = () => {
-                removeAuthToken();
-                setAuthenticated(false);
-            };
-
-            // Show login page if not authenticated
-            if (!authenticated) {
-                return <LoginPage onLogin={handleLogin} />;
-            }
 
             // Fetch properties from API
             useEffect(() => {
@@ -719,8 +704,8 @@
                         return false;
                     }
 
-                    // Possession Year filter
-                    if (filters.possessionYear && property.possessionYear !== filters.possessionYear) {
+                    // Possession Year filter (compare as strings: select gives string, API may give number)
+                    if (filters.possessionYear && String(property.possessionYear) !== String(filters.possessionYear)) {
                         return false;
                     }
 
@@ -751,7 +736,7 @@
                                         + Add Property
                                     </button>
                                     <button
-                                        onClick={handleLogout}
+                                        onClick={onLogout}
                                         className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 transition-colors"
                                     >
                                         Logout
@@ -827,6 +812,22 @@
                     </footer>
                 </div>
             );
+        }
+
+        // App: only decides between Login and Dashboard
+        function App() {
+            const [authenticated, setAuthenticated] = useState(() => isAuthenticated());
+
+            const handleLogin = () => setAuthenticated(true);
+
+            const handleLogout = () => {
+                removeAuthToken();
+                setAuthenticated(false);
+            };
+
+            return authenticated
+                ? <Dashboard onLogout={handleLogout} />
+                : <LoginPage onLogin={handleLogin} />;
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
