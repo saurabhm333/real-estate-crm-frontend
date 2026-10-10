@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: real-estate-crm-frontend
-    env: static
-    plan: free
-    buildCommand: ""
-    staticPublishPath: .
-    autoDeploy: true
