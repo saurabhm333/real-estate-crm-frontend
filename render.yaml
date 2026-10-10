@@ -3,6 +3,6 @@ services:
     name: real-estate-crm-frontend
     env: static
     plan: free
-    buildCommand: echo "No build needed for static HTML"
+    buildCommand: ""
     staticPublishPath: .
     autoDeploy: true
