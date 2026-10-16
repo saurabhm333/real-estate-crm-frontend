@@ -725,6 +725,131 @@
             );
         }
 
+        // Customer form matches the fields accepted by the Spring Boot CustomerDTO.
+        function CustomerForm({ onSave, onCancel, saving, error }) {
+            const [formData, setFormData] = useState({
+                name: "",
+                email: "",
+                address: "",
+                city: "",
+                state: "",
+                postalCode: ""
+            });
+
+            const handleSubmit = (event) => {
+                event.preventDefault();
+                onSave(formData);
+            };
+
+            const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+            return (
+                <section className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6 sm:p-8">
+                    <div className="mb-6">
+                        <p className="text-sm font-medium text-blue-600 mb-1">CUSTOMERS</p>
+                        <h2 className="text-2xl font-bold text-gray-900">Add a customer</h2>
+                        <p className="text-sm text-gray-500 mt-1">Save contact and address details for a new customer.</p>
+                    </div>
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Full name <span className="text-red-500">*</span></label>
+                                <input autoComplete="name" required maxLength="120" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className={inputClass} placeholder="e.g. Asha Patil" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+                                <input autoComplete="email" type="email" maxLength="160" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className={inputClass} placeholder="name@example.com" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Street address</label>
+                                <textarea autoComplete="street-address" rows="2" maxLength="1000" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className={inputClass} placeholder="Building, street, or area" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                                <input autoComplete="address-level2" maxLength="100" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className={inputClass} placeholder="City" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                                <input autoComplete="address-level1" maxLength="100" value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} className={inputClass} placeholder="State" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Postal code</label>
+                                <input autoComplete="postal-code" maxLength="20" value={formData.postalCode} onChange={(e) => setFormData({...formData, postalCode: e.target.value})} className={inputClass} placeholder="Postal code" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">
+                            <button type="button" onClick={onCancel} disabled={saving} className="px-5 py-2 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+                            <button type="submit" disabled={saving} className="px-5 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 disabled:bg-blue-400">{saving ? "Saving customer..." : "Save customer"}</button>
+                        </div>
+                    </form>
+                </section>
+            );
+        }
+
+        function CustomersPage({ customers, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAddCustomer }) {
+            return (
+                <section>
+                    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
+                        <div>
+                            <p className="text-sm font-medium text-blue-600 mb-1">CUSTOMERS</p>
+                            <h2 className="text-2xl font-bold text-gray-900">All customers</h2>
+                            {!loading && !error && <p className="text-sm text-gray-500 mt-1">{totalElements} {totalElements === 1 ? "customer" : "customers"} in your CRM</p>}
+                        </div>
+                        <button onClick={onAddCustomer} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-900/10 transition hover:bg-emerald-700">
+                            <span className="text-lg leading-none">+</span> Add customer
+                        </button>
+                    </div>
+
+                    {error ? (
+                        <div className="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center">
+                            <h3 className="font-semibold text-gray-900 mb-2">Customers could not be loaded</h3>
+                            <p className="text-sm text-gray-600 mb-4">{error}</p>
+                            <button onClick={onRetry} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">Try again</button>
+                        </div>
+                    ) : loading ? (
+                        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-600">Loading customers...</div>
+                    ) : customers.length === 0 ? (
+                        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No customers yet</h3>
+                            <p className="text-sm text-gray-500">Add a customer to start keeping their contact details here.</p>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            {["Name", "Email", "City", "Address"].map((heading) => <th key={heading} scope="col" className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{heading}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {customers.map((customer) => (
+                                            <tr key={customer.id} className="hover:bg-gray-50">
+                                                <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{customer.name}</td>
+                                                <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-600">{customer.email || "—"}</td>
+                                                <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-600">{[customer.city, customer.state].filter(Boolean).join(", ") || "—"}</td>
+                                                <td className="px-5 py-4 text-sm text-gray-600">{[customer.address, customer.postalCode].filter(Boolean).join(" · ") || "—"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3">
+                                    <span className="text-sm text-gray-500">Page {page + 1} of {totalPages}</span>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => onPageChange(page - 1)} disabled={page === 0} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Previous</button>
+                                        <button onClick={() => onPageChange(page + 1)} disabled={page + 1 >= totalPages} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Next</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </section>
+            );
+        }
+
         // Dashboard Component (only rendered when authenticated)
         // App: Main component with authentication and dashboard
         function App() {
@@ -734,6 +859,14 @@
             const [showForm, setShowForm] = useState(false);
             const [editingProperty, setEditingProperty] = useState(null);
             const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+            const [activePage, setActivePage] = useState("home");
+            const [customers, setCustomers] = useState([]);
+            const [customersLoading, setCustomersLoading] = useState(false);
+            const [customersError, setCustomersError] = useState("");
+            const [customerPage, setCustomerPage] = useState(0);
+            const [customerPageInfo, setCustomerPageInfo] = useState({ totalPages: 0, totalElements: 0 });
+            const [customerSaving, setCustomerSaving] = useState(false);
+            const [customerFormError, setCustomerFormError] = useState("");
 
             const handleLogin = () => setAuthenticated(true);
 
@@ -748,6 +881,47 @@
                     fetchProperties();
                 }
             }, [authenticated]);
+
+            useEffect(() => {
+                if (authenticated && activePage === "customers") {
+                    fetchCustomers(customerPage);
+                }
+            }, [authenticated, activePage, customerPage]);
+
+            const fetchCustomers = async (page) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 20000);
+                setCustomersLoading(true);
+                setCustomersError("");
+                try {
+                    const query = new URLSearchParams({ page: String(page), size: "10", sortBy: "name", sortDir: "asc" });
+                    const response = await fetch(`${API_BASE_URL}/api/customers?${query}`, {
+                        headers: { "Content-Type": "application/json" },
+                        signal: controller.signal
+                    });
+                    if (!response.ok) {
+                        throw new Error(`The server returned error ${response.status}.`);
+                    }
+                    const data = await response.json();
+                    const rows = Array.isArray(data) ? data : data.content;
+                    if (!Array.isArray(rows)) {
+                        throw new Error("The server returned customer data in an unexpected format.");
+                    }
+                    setCustomers(rows);
+                    setCustomerPageInfo({
+                        totalPages: Number.isFinite(data.totalPages) ? data.totalPages : (rows.length ? 1 : 0),
+                        totalElements: Number.isFinite(data.totalElements) ? data.totalElements : rows.length
+                    });
+                } catch (error) {
+                    setCustomers([]);
+                    setCustomersError(error.name === "AbortError"
+                        ? "The request took too long. Check the backend status and try again."
+                        : (error.message || "Check the connection to the backend and try again."));
+                } finally {
+                    clearTimeout(timeoutId);
+                    setCustomersLoading(false);
+                }
+            };
 
             const fetchProperties = async () => {
                 try {
@@ -783,6 +957,7 @@
 
             const handleAddProperty = () => {
                 setEditingProperty(null);
+                setActivePage("properties");
                 setShowForm(true);
             };
 
@@ -833,6 +1008,33 @@
                     } catch (error) {
                         console.error('Error deleting property:', error);
                     }
+                }
+            };
+
+            const handleSaveCustomer = async (customerData) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 20000);
+                setCustomerSaving(true);
+                setCustomerFormError("");
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/customers`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(customerData),
+                        signal: controller.signal
+                    });
+                    if (!response.ok) {
+                        throw new Error(`The server could not save this customer (error ${response.status}).`);
+                    }
+                    setCustomerPage(0);
+                    setActivePage("customers");
+                } catch (error) {
+                    setCustomerFormError(error.name === "AbortError"
+                        ? "Saving took too long. Check the backend status, then try again."
+                        : (error.message || "The customer could not be saved. Check the connection and try again."));
+                } finally {
+                    clearTimeout(timeoutId);
+                    setCustomerSaving(false);
                 }
             };
 
@@ -918,24 +1120,18 @@
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h1 className="text-2xl font-bold text-gray-900">Masterkey Solutions</h1>
-                                    <p className="text-sm text-gray-500">Admin Property Search Dashboard</p>
+                                    <p className="text-sm text-gray-500">{activePage === "home" ? "Real Estate CRM Dashboard" : activePage === "customers" || activePage === "addCustomer" ? "Customer management" : "Property search and management"}</p>
                                 </div>
-                                <div className="flex items-center space-x-4">
-                                    <button
-                                        onClick={handleAddProperty}
-                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
-                                    >
-                                        + Add Property
-                                    </button>
+                                <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                                    {activePage !== "home" && (
+                                        <button onClick={() => setActivePage("home")} className="px-4 py-2 border border-gray-300 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Back to dashboard</button>
+                                    )}
                                     <button
                                         onClick={handleLogout}
-                                        className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 transition-colors"
+                                        className="px-4 py-2 border border-red-200 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors"
                                     >
                                         Logout
                                     </button>
-                                    <span className="text-sm text-gray-600">
-                                        <span className="font-medium text-gray-900">{filteredProperties.length}</span> properties found
-                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -943,6 +1139,107 @@
 
                     {/* Main Content */}
                     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        {activePage === "home" ? (
+                            <div className="max-w-6xl mx-auto">
+                                <div className="mb-7">
+                                    <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 mb-2">Workspace</p>
+                                    <h2 className="text-3xl font-bold text-gray-900">Good to see you</h2>
+                                    <p className="text-gray-600 mt-2">Choose an area to continue managing your real estate business.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+                                    <button onClick={() => setActivePage("properties")} className="group aspect-square rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-6 text-left text-white shadow-lg shadow-blue-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-300">
+                                        <div className="flex h-full flex-col">
+                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6" /></svg>
+                                            </span>
+                                            <span className="text-2xl font-bold">Properties</span>
+                                            <span className="mt-2 text-sm text-blue-100">Browse, filter, and manage listings</span>
+                                            <span className="mt-5 text-sm font-semibold">Open properties</span>
+                                        </div>
+                                    </button>
+
+                                    <button onClick={() => setActivePage("customers")} className="group aspect-square rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-6 text-left text-white shadow-lg shadow-emerald-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-emerald-300">
+                                        <div className="flex h-full flex-col">
+                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                                            </span>
+                                            <span className="text-2xl font-bold">Customers</span>
+                                            <span className="mt-2 text-sm text-emerald-100">View and add customer contacts</span>
+                                            <span className="mt-5 text-sm font-semibold">Open customers</span>
+                                        </div>
+                                    </button>
+
+                                    <button type="button" disabled aria-disabled="true" title="Leads will be available soon" className="aspect-square cursor-not-allowed rounded-2xl border border-gray-200 bg-white p-6 text-left text-gray-400 shadow-sm">
+                                        <div className="flex h-full flex-col">
+                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-400">
+                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a4 4 0 0 0-5.2-3.82M17 20H7m10 0v-2c0-.72-.15-1.4-.42-2M7 20H2v-2a4 4 0 0 1 5.2-3.82M7 20v-2c0-.72.15-1.4.42-2m0 0a5 5 0 0 1 9.16 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm5 3a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM8 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" /></svg>
+                                            </span>
+                                            <span className="text-2xl font-bold text-gray-500">Leads</span>
+                                            <span className="mt-2 text-sm text-gray-400">Keep track of new opportunities</span>
+                                            <span className="mt-5 inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">Coming soon</span>
+                                        </div>
+                                    </button>
+
+                                    <button type="button" disabled aria-disabled="true" title="Follow-ups will be available soon" className="aspect-square cursor-not-allowed rounded-2xl border border-gray-200 bg-white p-6 text-left text-gray-400 shadow-sm">
+                                        <div className="flex h-full flex-col">
+                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-gray-400">
+                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l2.5 2.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                            </span>
+                                            <span className="text-2xl font-bold text-gray-500">Follow-ups</span>
+                                            <span className="mt-2 text-sm text-gray-400">Stay on top of customer conversations</span>
+                                            <span className="mt-5 inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">Coming soon</span>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                <section className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/70 p-5 sm:p-6">
+                                    <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Quick actions</p>
+                                            <h3 className="mt-1 text-lg font-semibold text-gray-900">Add something new</h3>
+                                            <p className="mt-1 text-sm text-gray-600">Create a listing or save a customer contact.</p>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <button onClick={handleAddProperty} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-blue-200 transition hover:bg-blue-600 hover:text-white hover:ring-blue-600">
+                                                <span className="text-lg leading-none">+</span> Add property
+                                            </button>
+                                            <button onClick={() => { setCustomerFormError(""); setActivePage("addCustomer"); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200 transition hover:bg-emerald-600 hover:text-white hover:ring-emerald-600">
+                                                <span className="text-lg leading-none">+</span> Add customer
+                                            </button>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        ) : activePage === "customers" ? (
+                            <CustomersPage
+                                customers={customers}
+                                loading={customersLoading}
+                                error={customersError}
+                                page={customerPage}
+                                totalPages={customerPageInfo.totalPages}
+                                totalElements={customerPageInfo.totalElements}
+                                onPageChange={setCustomerPage}
+                                onRetry={() => fetchCustomers(customerPage)}
+                                onAddCustomer={() => { setCustomerFormError(""); setActivePage("addCustomer"); }}
+                            />
+                        ) : activePage === "addCustomer" ? (
+                            <CustomerForm
+                                onSave={handleSaveCustomer}
+                                onCancel={() => { setCustomerFormError(""); setActivePage("customers"); }}
+                                saving={customerSaving}
+                                error={customerFormError}
+                            />
+                        ) : <>
+                        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Properties</p>
+                                <h2 className="mt-1 text-2xl font-bold text-gray-900">Property listings</h2>
+                            </div>
+                            <button onClick={handleAddProperty} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-blue-900/10 transition hover:bg-blue-700">
+                                <span className="text-lg leading-none">+</span> Add property
+                            </button>
+                        </div>
                         <FilterPanel filters={filters} setFilters={setFilters} />
 
                         {/* Results Section */}
@@ -983,6 +1280,7 @@
                                 ))}
                             </div>
                         )}
+                        </>}
                     </main>
 
                     {/* Property Form Modal */}
