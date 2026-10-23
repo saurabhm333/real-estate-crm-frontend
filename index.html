@@ -1348,7 +1348,7 @@
             );
         }
 
-        function LeadsPage({ leads, customers, properties, loading, error, onAddLead, onEditLead, onDeleteLead, filters, setFilters }) {
+        function LeadsPage({ leads, customers, properties, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAddLead, onEditLead, onDeleteLead, filters, setFilters }) {
             const filteredLeads = leads.filter(lead => {
                 if (filters.source && lead.source !== filters.source) return false;
                 if (filters.status && lead.status !== filters.status) return false;
@@ -1376,7 +1376,7 @@
                             <h2 className="text-2xl font-bold text-gray-900">Manage Leads</h2>
                             {!loading && !error && (
                                 <p className="text-sm text-gray-500 mt-1">
-                                    {hasActiveFilters ? `Showing ${filteredLeads.length} of ${leads.length} leads` : `${leads.length} ${leads.length === 1 ? "lead" : "leads"} in your CRM`}
+                                    {hasActiveFilters ? `Showing ${filteredLeads.length} of ${totalElements} leads` : `${totalElements} ${totalElements === 1 ? "lead" : "leads"} in your CRM`}
                                 </p>
                             )}
                         </div>
@@ -1546,6 +1546,8 @@
             const [leads, setLeads] = useState([]);
             const [leadsLoading, setLeadsLoading] = useState(false);
             const [leadsError, setLeadsError] = useState("");
+            const [leadPage, setLeadPage] = useState(0);
+            const [leadPageInfo, setLeadPageInfo] = useState({ totalPages: 0, totalElements: 0 });
             const [leadFilters, setLeadFilters] = useState({ ...LEAD_EMPTY_FILTERS });
             const [showLeadForm, setShowLeadForm] = useState(false);
             const [editingLead, setEditingLead] = useState(null);
@@ -1582,9 +1584,9 @@
 
             useEffect(() => {
                 if (authenticated && activePage === "leads") {
-                    fetchLeads(0);
+                    fetchLeads(leadPage);
                 }
-            }, [authenticated, activePage]);
+            }, [authenticated, activePage, leadPage]);
 
             useEffect(() => {
                 if (authenticated && activePage === "siteVisits") {
@@ -1627,11 +1629,12 @@
                 }
             };
 
-            const fetchLeads = async () => {
+            const fetchLeads = async (page) => {
                 setLeadsLoading(true);
                 setLeadsError("");
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/leads`, {
+                    const query = new URLSearchParams({ page: String(page), size: "10", sortBy: "id", sortDir: "asc" });
+                    const response = await fetch(`${API_BASE_URL}/api/leads?${query}`, {
                         headers: { "Content-Type": "application/json" }
                     });
                     if (!response.ok) {
@@ -1643,6 +1646,10 @@
                         throw new Error("The server returned lead data in an unexpected format.");
                     }
                     setLeads(rows);
+                    setLeadPageInfo({
+                        totalPages: Number.isFinite(data.totalPages) ? data.totalPages : (rows.length ? 1 : 0),
+                        totalElements: Number.isFinite(data.totalElements) ? data.totalElements : rows.length
+                    });
 
                     // Also fetch customers and properties for the form dropdowns
                     if (customers.length === 0) {
@@ -1854,7 +1861,7 @@
                         });
 
                         if (response.ok) {
-                            await fetchLeads();
+                            await fetchLeads(leadPage);
                         } else {
                             console.error('Error deleting lead');
                         }
@@ -2126,6 +2133,11 @@
                                 properties={properties}
                                 loading={leadsLoading}
                                 error={leadsError}
+                                page={leadPage}
+                                totalPages={leadPageInfo.totalPages}
+                                totalElements={leadPageInfo.totalElements}
+                                onPageChange={setLeadPage}
+                                onRetry={() => fetchLeads(leadPage)}
                                 onAddLead={handleAddLead}
                                 onEditLead={handleEditLead}
                                 onDeleteLead={handleDeleteLead}
