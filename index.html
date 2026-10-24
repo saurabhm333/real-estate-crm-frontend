@@ -53,6 +53,7 @@
             furnishing: "",
             carpetArea: "",
             floorNumber: "",
+            maxBuildingAge: "",
             parking: ""
         };
 
@@ -329,6 +330,19 @@
                             </select>
                         </div>
 
+                        {/* Building Age */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Max Building Age (years)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={filters.maxBuildingAge}
+                                onChange={(e) => setFilters({...filters, maxBuildingAge: e.target.value})}
+                                placeholder="e.g., 10"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
                         {/* Locality */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Locality</label>
@@ -492,6 +506,14 @@
                                     <span>Parking: {property.parking}</span>
                                 </div>
                             )}
+                            {property.buildingAge !== null && property.buildingAge !== undefined && (
+                                <div className="flex items-center">
+                                    <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M5 11h14M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" />
+                                    </svg>
+                                    <span>Building Age: {property.buildingAge} {property.buildingAge === 1 ? "year" : "years"}</span>
+                                </div>
+                            )}
                         </div>
                         
                         <div className="mt-4 pt-4 border-t border-gray-100">
@@ -529,6 +551,7 @@
                 furnishing: property.furnishing || "",
                 carpetArea: property.carpetArea || "",
                 floorNumber: property.floorNumber || "",
+                buildingAge: property.buildingAge ?? "",
                 parking: property.parking || ""
             } : {
                 name: "",
@@ -544,6 +567,7 @@
                 furnishing: "",
                 carpetArea: "",
                 floorNumber: "",
+                buildingAge: "",
                 parking: ""
             });
 
@@ -553,6 +577,7 @@
                     ID: property?.id,
                     ...formData,
                     price: Number(formData.price),
+                    buildingAge: formData.buildingAge === "" ? null : Number(formData.buildingAge),
                     amenities: formData.amenities === "true" || formData.amenities === true
                 });
             };
@@ -760,6 +785,18 @@
                                         <option key={option} value={option}>{option}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Building Age (years)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={formData.buildingAge}
+                                    onChange={(e) => setFormData({...formData, buildingAge: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    placeholder="e.g., 5"
+                                />
                             </div>
 
                             <div>
@@ -1407,6 +1444,10 @@
                 notes: followUp?.notes || "",
                 status: followUp?.status || "PENDING"
             });
+            const distinctLeads = [...new Map(leads.map(lead => {
+                const name = lead.customer?.name?.trim() || `Lead #${lead.id}`;
+                return [name.toLocaleLowerCase(), { ...lead, displayName: name }];
+            })).values()];
 
             const handleSubmit = (event) => {
                 event.preventDefault();
@@ -1444,8 +1485,8 @@
                                     className={inputClass}
                                 >
                                     <option value="">Select Lead</option>
-                                    {leads.map(lead => (
-                                        <option key={lead.id} value={lead.id}>{lead.customer?.name || `Lead #${lead.id}`}</option>
+                                    {distinctLeads.map(lead => (
+                                        <option key={lead.id} value={lead.id}>{lead.displayName}</option>
                                     ))}
                                 </select>
                             </div>
@@ -1677,7 +1718,7 @@
             );
         }
 
-        function LeadsPage({ leads, customers, properties, loading, error, onAddLead, onEditLead, onDeleteLead, filters, setFilters }) {
+        function LeadsPage({ leads, customers, properties, loading, error, onRetry, onAddLead, onEditLead, onDeleteLead, filters, setFilters }) {
             const filteredLeads = leads.filter(lead => {
                 if (filters.source && lead.source !== filters.source) return false;
                 if (filters.status && lead.status !== filters.status) return false;
@@ -1774,15 +1815,6 @@
                                     </tbody>
                                 </table>
                             </div>
-                            {totalPages > 1 && (
-                                <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3">
-                                    <span className="text-sm text-gray-500">Page {page + 1} of {totalPages}</span>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => onPageChange(page - 1)} disabled={page === 0} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Previous</button>
-                                        <button onClick={() => onPageChange(page + 1)} disabled={page + 1 >= totalPages} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Next</button>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
                 </section>
@@ -2208,7 +2240,7 @@
                         throw new Error(`The server could not save this lead (error ${response.status}).`);
                     }
 
-                    await fetchLeads(leadPage);
+                    await fetchLeads();
                     setShowLeadForm(false);
                     setEditingLead(null);
                 } catch (error) {
@@ -2423,6 +2455,11 @@
                         return false;
                     }
 
+                    // Maximum building age filter
+                    if (filters.maxBuildingAge !== "" && (property.buildingAge === null || property.buildingAge === undefined || property.buildingAge > parseInt(filters.maxBuildingAge, 10))) {
+                        return false;
+                    }
+
                     return true;
                 });
                 console.log('Filtered result count:', result.length);
@@ -2574,6 +2611,7 @@
                                 properties={properties}
                                 loading={leadsLoading}
                                 error={leadsError}
+                                onRetry={fetchLeads}
                                 onAddLead={handleAddLead}
                                 onEditLead={handleEditLead}
                                 onDeleteLead={handleDeleteLead}
