@@ -85,6 +85,18 @@
 
         const FOLLOW_UP_STATUSES = ["PENDING", "COMPLETED", "CANCELLED", "RESCHEDULED"];
 
+        // datetime-local values have no timezone. Treat them as India Standard Time.
+        const toISTInputValue = (dateTime) => {
+            if (!dateTime) return "";
+            const date = new Date(dateTime);
+            if (Number.isNaN(date.getTime())) return "";
+            return new Intl.DateTimeFormat("sv-SE", {
+                timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+                hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+            }).format(date).replace(" ", "T");
+        };
+        const istInputToISO = (value) => value ? new Date(`${value}:00+05:30`).toISOString() : null;
+
         // Authentication utilities
         const getAuthToken = () => sessionStorage.getItem('authToken');
         const setAuthToken = (token) => sessionStorage.setItem('authToken', token);
@@ -1482,7 +1494,7 @@
         function FollowUpForm({ followUp, leads, onSave, onCancel, saving, error }) {
             const [formData, setFormData] = useState({
                 leadId: followUp?.lead?.id || "",
-                followUpDate: followUp?.followUpDate ? followUp.followUpDate.slice(0, 16) : "",
+                followUpDate: toISTInputValue(followUp?.followUpDate),
                 notes: followUp?.notes || "",
                 status: followUp?.status || "PENDING"
             });
@@ -1658,7 +1670,7 @@
                 if (filters.status && followUp.status !== filters.status) return false;
                 if (filters.leadName && followUp.lead && followUp.lead.customer && !followUp.lead.customer.name.toLowerCase().includes(filters.leadName.toLowerCase())) return false;
                 if (filters.dateFrom && followUp.followUpDate) {
-                    const followUpDate = new Date(followUp.followUpDate).toISOString().split('T')[0];
+                    const followUpDate = toISTInputValue(followUp.followUpDate).split('T')[0];
                     if (followUpDate < filters.dateFrom) return false;
                 }
                 return true;
@@ -1674,8 +1686,8 @@
             const formatDateTime = (dateTime) => {
                 if (!dateTime) return "—";
                 const date = new Date(dateTime);
-                return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) +
-                       ' ' + date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                return date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) +
+                       ' ' + date.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' });
             };
 
             const hasActiveFilters = filters.status || filters.leadName || filters.dateFrom;
@@ -1863,8 +1875,9 @@
             );
         }
 
-        function CustomersPage({ customers, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAddCustomer, onEditCustomer }) {
+        function CustomersPage({ customers, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAddCustomer, onEditCustomer, onDeleteCustomer, search, setSearch }) {
             const statusRowStyles = { DEAL_DONE: "bg-green-50 hover:bg-green-100", DEAL_NOT_DONE: "bg-red-50 hover:bg-red-100", ACTIVE: "bg-blue-50 hover:bg-blue-100" };
+            const filteredCustomers = customers.filter(customer => (customer.name || "").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
             return (
                 <section>
                     <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
@@ -1878,6 +1891,11 @@
                         </button>
                     </div>
 
+                    <div className="mb-4">
+                        <label className="sr-only" htmlFor="customer-search">Search customers by name</label>
+                        <input id="customer-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search customers by name..." className="w-full sm:max-w-md rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    </div>
+
                     {error ? (
                         <div className="bg-white rounded-lg shadow-sm border border-red-200 p-8 text-center">
                             <h3 className="font-semibold text-gray-900 mb-2">Customers could not be loaded</h3>
@@ -1886,10 +1904,10 @@
                         </div>
                     ) : loading ? (
                         <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-600">Loading customers...</div>
-                    ) : customers.length === 0 ? (
+                    ) : filteredCustomers.length === 0 ? (
                         <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No customers yet</h3>
-                            <p className="text-sm text-gray-500">Add a customer to start keeping their contact details here.</p>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">{customers.length ? "No matching customers" : "No customers yet"}</h3>
+                            <p className="text-sm text-gray-500">{customers.length ? "Try another name." : "Add a customer to start keeping their contact details here."}</p>
                         </div>
                     ) : (
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -1897,17 +1915,17 @@
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
-                                            {["Name", "Email", "City", "Address", "Edit"].map((heading) => <th key={heading} scope="col" className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{heading}</th>)}
+                                            {["Name", "Email", "City", "Address", "Actions"].map((heading) => <th key={heading} scope="col" className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{heading}</th>)}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {customers.map((customer) => (
+                                        {filteredCustomers.map((customer) => (
                                             <tr key={customer.id} className={statusRowStyles[customer.status] || statusRowStyles.ACTIVE}>
                                                 <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{customer.name}</td>
                                                 <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-600">{customer.email || "—"}</td>
                                                 <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-600">{[customer.city, customer.state].filter(Boolean).join(", ") || "—"}</td>
                                                 <td className="px-5 py-4 text-sm text-gray-600">{[customer.address, customer.postalCode].filter(Boolean).join(" · ") || "—"}</td>
-                                                <td className="px-5 py-4 whitespace-nowrap text-right"><button onClick={() => onEditCustomer(customer)} aria-label={`Edit ${customer.name}`} title="Edit customer" className="inline-flex rounded p-1 text-blue-700 hover:bg-white/70 hover:text-blue-900"><svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.862 4.487l2.651 2.651M8 16l8.5-8.5a1.875 1.875 0 112.652 2.652L10.652 18.65 7 19.5 8 16z" /></svg></button></td>
+                                                <td className="px-5 py-4 whitespace-nowrap text-right"><div className="inline-flex gap-2"><button onClick={() => onEditCustomer(customer)} aria-label={`Edit ${customer.name}`} title="Edit customer" className="inline-flex rounded p-1 text-blue-700 hover:bg-white/70 hover:text-blue-900"><svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.862 4.487l2.651 2.651M8 16l8.5-8.5a1.875 1.875 0 112.652 2.652L10.652 18.65 7 19.5 8 16z" /></svg></button><button onClick={() => onDeleteCustomer(customer)} aria-label={`Delete ${customer.name}`} title="Delete customer" className="inline-flex rounded p-1 text-red-700 hover:bg-white/70 hover:text-red-900"><svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12m-10 0 1 13h6l1-13M9 7V4h6v3m-5 4v5m4-5v5" /></svg></button></div></td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1942,6 +1960,7 @@
             const [customersLoading, setCustomersLoading] = useState(false);
             const [customersError, setCustomersError] = useState("");
             const [customerPage, setCustomerPage] = useState(0);
+            const [customerSearch, setCustomerSearch] = useState("");
             const [customerPageInfo, setCustomerPageInfo] = useState({ totalPages: 0, totalElements: 0 });
             const [customerSaving, setCustomerSaving] = useState(false);
             const [customerFormError, setCustomerFormError] = useState("");
@@ -2259,6 +2278,18 @@
                 }
             };
 
+            const handleDeleteCustomer = async (customer) => {
+                if (!window.confirm(`Delete customer ${customer.name}? This cannot be undone.`)) return;
+                try {
+                    const response = await apiFetch(`${API_BASE_URL}/api/customers/${customer.id}`, { method: "DELETE" });
+                    if (!response.ok) throw new Error(`The server could not delete this customer (error ${response.status}).`);
+                    if (customers.length === 1 && customerPage > 0) setCustomerPage(customerPage - 1);
+                    else await fetchCustomers(customerPage);
+                } catch (error) {
+                    window.alert(error.message || "The customer could not be deleted.");
+                }
+            };
+
             const handleAddLead = () => {
                 setEditingLead(null);
                 setLeadFormError("");
@@ -2285,7 +2316,13 @@
                     });
 
                     if (!response.ok) {
-                        throw new Error(`The server could not save this lead (error ${response.status}).`);
+                        const responseDetails = await response.text();
+                        let detail = responseDetails;
+                        try {
+                            const parsed = JSON.parse(responseDetails);
+                            detail = parsed.message || parsed.error || responseDetails;
+                        } catch (_) { /* Keep a plain-text server response as-is. */ }
+                        throw new Error(`The server could not save this lead (error ${response.status}).${detail ? ` ${detail}` : ""}`);
                     }
 
                     await fetchLeads();
@@ -2400,7 +2437,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             ...followUpData,
-                            followUpDate: followUpData.followUpDate ? new Date(followUpData.followUpDate).toISOString() : null
+                            followUpDate: istInputToISO(followUpData.followUpDate)
                         }),
                     });
 
@@ -2642,6 +2679,9 @@
                                 onRetry={() => fetchCustomers(customerPage)}
                                 onAddCustomer={() => { setEditingCustomer(null); setCustomerFormError(""); setActivePage("addCustomer"); }}
                                 onEditCustomer={(customer) => { setEditingCustomer(customer); setCustomerFormError(""); setActivePage("editCustomer"); }}
+                                onDeleteCustomer={handleDeleteCustomer}
+                                search={customerSearch}
+                                setSearch={setCustomerSearch}
                             />
                         ) : activePage === "addCustomer" || activePage === "editCustomer" ? (
                             <CustomerForm
