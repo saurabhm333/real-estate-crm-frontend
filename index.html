@@ -20,10 +20,10 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // API Base URL - Change this to your deployed backend URL
-        // For local development: 'http://localhost:8080'
-        // For Render deployment: 'https://real-estate-crm-backend-3any.onrender.com'
-        const API_BASE_URL = localStorage.getItem('API_BASE_URL') || 'https://real-estate-crm-backend-3any.onrender.com';
+        // Override with window.REAL_ESTATE_API_BASE_URL or API_BASE_URL in localStorage.
+        // GitHub Pages defaults to production; local development defaults to Spring Boot on port 8080.
+        const IS_LOCAL_HOST = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        const API_BASE_URL = (window.REAL_ESTATE_API_BASE_URL || localStorage.getItem('API_BASE_URL') || (IS_LOCAL_HOST ? 'http://localhost:8080' : 'https://3.106.138.202')).replace(/\/$/, '');
 
         // Shared option lists (used by both the filter panel and the property form)
         const LOCALITIES = ["Wakad", "Hinjawadi", "Ravet", "Tathawade", "Moshi", "Chinchwad", "Punawale", "Kiwale", "Mamurdi", "Baner", "Balewadi",
@@ -86,10 +86,30 @@
         const FOLLOW_UP_STATUSES = ["PENDING", "COMPLETED", "CANCELLED", "RESCHEDULED"];
 
         // Authentication utilities
-        const getAuthToken = () => localStorage.getItem('authToken');
-        const setAuthToken = (token) => localStorage.setItem('authToken', token);
-        const removeAuthToken = () => localStorage.removeItem('authToken');
+        const getAuthToken = () => sessionStorage.getItem('authToken');
+        const setAuthToken = (token) => sessionStorage.setItem('authToken', token);
+        const removeAuthToken = () => sessionStorage.removeItem('authToken');
+        // Discard tokens from the former persistent localStorage-based login.
+        localStorage.removeItem('authToken');
         const isAuthenticated = () => !!getAuthToken();
+
+        // All CRM API calls go through this wrapper. The signin request deliberately uses fetch directly.
+        const apiFetch = async (url, options = {}) => {
+            if (!API_BASE_URL) throw new Error('Backend URL is not configured. Set window.REAL_ESTATE_API_BASE_URL or API_BASE_URL.');
+            const headers = new Headers(options.headers || {});
+            const token = getAuthToken();
+            if (!token) {
+                window.dispatchEvent(new Event('crm:session-expired'));
+                throw new Error('Authentication is required. Please sign in again.');
+            }
+            headers.set('Authorization', `Bearer ${token}`);
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401) {
+                removeAuthToken();
+                window.dispatchEvent(new Event('crm:session-expired'));
+            }
+            return response;
+        };
 
         // Login Component
         function LoginPage({ onLogin }) {
@@ -103,12 +123,34 @@
                 setError('');
                 setLoading(true);
 
-                // Simple client-side authentication check
-                if (username === 'admin' && password === 'admin123') {
-                    setAuthToken('dummy-token');
+                if (!API_BASE_URL) {
+                    setError('Backend URL is not configured. Set window.REAL_ESTATE_API_BASE_URL or API_BASE_URL.');
+                    setLoading(false);
+                    return;
+                }
+                try {
+                    // Do not use apiFetch here: signin is public and must never carry a stale Bearer token.
+                    const response = await fetch(`${API_BASE_URL}/api/auth/signin`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    if (!response.ok) {
+                        setError(response.status === 401 ? 'Invalid username or password.'
+                            : response.status === 429 ? 'Too many failed attempts. Try again later.'
+                            : `Login failed (server error ${response.status}).`);
+                        return;
+                    }
+                    const data = await response.json();
+                    if (!data.accessToken || data.tokenType !== 'Bearer') {
+                        setError('The server returned an invalid authentication response.');
+                        return;
+                    }
+                    setAuthToken(data.accessToken);
                     onLogin();
-                } else {
-                    setError('Invalid credentials. Please try again.');
+                } catch (error) {
+                    setError('Could not connect to the backend. Check the backend URL and try again.');
+                } finally {
                     setLoading(false);
                 }
             };
@@ -1931,6 +1973,12 @@
 
             const handleLogin = () => setAuthenticated(true);
 
+            useEffect(() => {
+                const handleSessionExpired = () => setAuthenticated(false);
+                window.addEventListener('crm:session-expired', handleSessionExpired);
+                return () => window.removeEventListener('crm:session-expired', handleSessionExpired);
+            }, []);
+
             const handleLogout = () => {
                 removeAuthToken();
                 setAuthenticated(false);
@@ -1974,7 +2022,7 @@
                 setCustomersError("");
                 try {
                     const query = new URLSearchParams({ page: String(page), size: "10", sortBy: "name", sortDir: "asc" });
-                    const response = await fetch(`${API_BASE_URL}/api/customers?${query}`, {
+                    const response = await apiFetch(`${API_BASE_URL}/api/customers?${query}`, {
                         headers: { "Content-Type": "application/json" },
                         signal: controller.signal
                     });
@@ -2006,7 +2054,7 @@
                 setLeadsLoading(true);
                 setLeadsError("");
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/leads`, {
+                    const response = await apiFetch(`${API_BASE_URL}/api/leads`, {
                         headers: { "Content-Type": "application/json" }
                     });
                     if (!response.ok) {
@@ -2038,7 +2086,7 @@
                 setSiteVisitsLoading(true);
                 setSiteVisitsError("");
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/site-visits`, {
+                    const response = await apiFetch(`${API_BASE_URL}/api/site-visits`, {
                         headers: { "Content-Type": "application/json" }
                     });
                     if (!response.ok) {
@@ -2070,7 +2118,7 @@
                 setFollowUpsLoading(true);
                 setFollowUpsError("");
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/follow-ups`, {
+                    const response = await apiFetch(`${API_BASE_URL}/api/follow-ups`, {
                         headers: { "Content-Type": "application/json" }
                     });
                     if (!response.ok) {
@@ -2097,7 +2145,7 @@
 
             const fetchProperties = async () => {
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/properties`, {
+                    const response = await apiFetch(`${API_BASE_URL}/api/properties`, {
                         headers: {
                             'Content-Type': 'application/json',
                         }
@@ -2145,7 +2193,7 @@
 
                     const { ID, ...dataToSend } = propertyData;
 
-                    const response = await fetch(url, {
+                    const response = await apiFetch(url, {
                         method: method,
                         headers: {
                             'Content-Type': 'application/json',
@@ -2168,7 +2216,7 @@
             const handleDeleteProperty = async (id) => {
                 if (window.confirm('Are you sure you want to delete this property?')) {
                     try {
-                        const response = await fetch(`${API_BASE_URL}/api/properties/${id}`, {
+                        const response = await apiFetch(`${API_BASE_URL}/api/properties/${id}`, {
                             method: 'DELETE',
                         });
 
@@ -2189,7 +2237,7 @@
                 setCustomerSaving(true);
                 setCustomerFormError("");
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/customers${editingCustomer ? `/${editingCustomer.id}` : ""}`, {
+                    const response = await apiFetch(`${API_BASE_URL}/api/customers${editingCustomer ? `/${editingCustomer.id}` : ""}`, {
                         method: editingCustomer ? "PUT" : "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(customerData),
@@ -2230,7 +2278,7 @@
                     const url = editingLead ? `${API_BASE_URL}/api/leads/${editingLead.id}` : `${API_BASE_URL}/api/leads`;
                     const method = editingLead ? 'PUT' : 'POST';
 
-                    const response = await fetch(url, {
+                    const response = await apiFetch(url, {
                         method: method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(leadData),
@@ -2253,7 +2301,7 @@
             const handleDeleteLead = async (id) => {
                 if (window.confirm('Are you sure you want to delete this lead?')) {
                     try {
-                        const response = await fetch(`${API_BASE_URL}/api/leads/${id}`, {
+                        const response = await apiFetch(`${API_BASE_URL}/api/leads/${id}`, {
                             method: 'DELETE',
                         });
 
@@ -2287,7 +2335,7 @@
                     const url = editingSiteVisit ? `${API_BASE_URL}/api/site-visits/${editingSiteVisit.id}` : `${API_BASE_URL}/api/site-visits`;
                     const method = editingSiteVisit ? 'PUT' : 'POST';
 
-                    const response = await fetch(url, {
+                    const response = await apiFetch(url, {
                         method: method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2313,7 +2361,7 @@
             const handleDeleteSiteVisit = async (id) => {
                 if (window.confirm('Are you sure you want to delete this site visit?')) {
                     try {
-                        const response = await fetch(`${API_BASE_URL}/api/site-visits/${id}`, {
+                        const response = await apiFetch(`${API_BASE_URL}/api/site-visits/${id}`, {
                             method: 'DELETE',
                         });
 
@@ -2347,7 +2395,7 @@
                     const url = editingFollowUp ? `${API_BASE_URL}/api/follow-ups/${editingFollowUp.id}` : `${API_BASE_URL}/api/follow-ups`;
                     const method = editingFollowUp ? 'PUT' : 'POST';
 
-                    const response = await fetch(url, {
+                    const response = await apiFetch(url, {
                         method: method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -2373,7 +2421,7 @@
             const handleDeleteFollowUp = async (id) => {
                 if (window.confirm('Are you sure you want to delete this follow-up?')) {
                     try {
-                        const response = await fetch(`${API_BASE_URL}/api/follow-ups/${id}`, {
+                        const response = await apiFetch(`${API_BASE_URL}/api/follow-ups/${id}`, {
                             method: 'DELETE',
                         });
 
