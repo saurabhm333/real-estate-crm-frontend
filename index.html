@@ -12,9 +12,59 @@
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
+        .crm-background {
+            background-color: #f5f8fc;
+            background-image: url("./assets/property-building-texture.svg");
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-attachment: fixed;
+        }
+        #dashboard-actions > div:last-child > button {
+                height: 92px;
+                min-height: 92px;
+                padding: 1rem;
+        }
+        #dashboard-actions > div:last-child > button > div {
+                display: grid;
+                grid-template-columns: 44px minmax(0, 1fr);
+                grid-template-rows: auto auto;
+                align-content: center;
+                align-items: center;
+                column-gap: 0.75rem;
+                row-gap: 0.15rem;
+                height: 100%;
+        }
+        #dashboard-actions > div:last-child > button > div > span:first-child {
+                grid-column: 1;
+                grid-row: 1 / 3;
+                width: 44px;
+                height: 44px;
+                margin: 0;
+        }
+        #dashboard-actions > div:last-child > button > div > span:nth-child(2) {
+                grid-column: 2;
+                grid-row: 1;
+                margin: 0;
+                font-size: 1rem;
+        }
+        #dashboard-actions > div:last-child > button > div > span:nth-child(3) {
+                grid-column: 2;
+                grid-row: 2;
+                margin: 0;
+                font-size: 0.75rem;
+                line-height: 1.25rem;
+        }
+        #dashboard-actions > div:last-child > button > div > span:nth-child(4) {
+            display: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
-<body class="bg-gray-100">
+<body class="crm-background">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -98,15 +148,17 @@
         const istInputToISO = (value) => value ? new Date(`${value}:00+05:30`).toISOString() : null;
 
         // Authentication utilities
+        const UI_PREVIEW_MODE = true; // TEMPORARY: turn off after UI review is confirmed.
         const getAuthToken = () => sessionStorage.getItem('authToken');
         const setAuthToken = (token) => sessionStorage.setItem('authToken', token);
         const removeAuthToken = () => sessionStorage.removeItem('authToken');
         // Discard tokens from the former persistent localStorage-based login.
         localStorage.removeItem('authToken');
-        const isAuthenticated = () => !!getAuthToken();
+        const isAuthenticated = () => UI_PREVIEW_MODE || !!getAuthToken();
 
         // All CRM API calls go through this wrapper. The signin request deliberately uses fetch directly.
         const apiFetch = async (url, options = {}) => {
+            if (UI_PREVIEW_MODE) throw new Error('API requests are disabled during the temporary UI preview.');
             if (!API_BASE_URL) throw new Error('Backend URL is not configured. Set window.REAL_ESTATE_API_BASE_URL or API_BASE_URL.');
             const headers = new Headers(options.headers || {});
             const token = getAuthToken();
@@ -1875,6 +1927,74 @@
             );
         }
 
+        const ENQUIRY_STATUSES = ["ACTIVE", "RESPONDED", "CLOSED", "FOLLOW_UP_REQUIRED"];
+
+        function EnquiryForm({ enquiry, customers, properties, onSave, onCancel, saving, error }) {
+            const [formData, setFormData] = useState({
+                customerId: enquiry?.customer?.id || "",
+                propertyId: enquiry?.property?.id || "",
+                enquiryDate: enquiry?.enquiryDate ? enquiry.enquiryDate.slice(0, 16) : "",
+                budgetRange: enquiry?.budgetRange || "",
+                requirements: enquiry?.requirements || "",
+                status: enquiry?.status || "ACTIVE"
+            });
+            const inputClass = "w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500";
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+                        <div className="mb-5 flex items-center justify-between">
+                            <div><h2 className="text-xl font-semibold text-gray-900">{enquiry ? "Edit enquiry" : "Add enquiry"}</h2><p className="mt-1 text-sm text-gray-500">Record a customer’s interest in a property.</p></div>
+                            <button onClick={onCancel} className="rounded p-1 text-gray-500 hover:bg-gray-100" aria-label="Close">✕</button>
+                        </div>
+                        <form onSubmit={event => { event.preventDefault(); onSave(formData); }} className="space-y-4">
+                            {error && <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <label className="block text-sm font-medium text-gray-700">Customer <span className="text-red-500">*</span>
+                                    <select required value={formData.customerId} onChange={event => setFormData({ ...formData, customerId: event.target.value })} className={`${inputClass} mt-1 font-normal`}><option value="">Select customer</option>{customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>
+                                </label>
+                                <label className="block text-sm font-medium text-gray-700">Property <span className="text-red-500">*</span>
+                                    <select required value={formData.propertyId} onChange={event => setFormData({ ...formData, propertyId: event.target.value })} className={`${inputClass} mt-1 font-normal`}><option value="">Select property</option>{properties.map(property => <option key={property.id} value={property.id}>{property.name || property.locality || `Property #${property.id}`}</option>)}</select>
+                                </label>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <label className="block text-sm font-medium text-gray-700">Enquiry date &amp; time (IST) <span className="text-red-500">*</span><input required type="datetime-local" value={formData.enquiryDate} onChange={event => setFormData({ ...formData, enquiryDate: event.target.value })} className={`${inputClass} mt-1 font-normal`} /></label>
+                                <label className="block text-sm font-medium text-gray-700">Budget range<input value={formData.budgetRange} onChange={event => setFormData({ ...formData, budgetRange: event.target.value })} maxLength="100" placeholder="e.g. ₹50–60 lakh" className={`${inputClass} mt-1 font-normal`} /></label>
+                            </div>
+                            <label className="block text-sm font-medium text-gray-700">Status
+                                <select value={formData.status} onChange={event => setFormData({ ...formData, status: event.target.value })} className={`${inputClass} mt-1 font-normal`}>{ENQUIRY_STATUSES.map(status => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
+                            </label>
+                            <label className="block text-sm font-medium text-gray-700">Requirements<textarea rows="4" value={formData.requirements} onChange={event => setFormData({ ...formData, requirements: event.target.value })} placeholder="Property preferences, questions, or other details" className={`${inputClass} mt-1 font-normal`} /></label>
+                            <div className="flex justify-end gap-3 border-t pt-4"><button type="button" onClick={onCancel} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button><button type="submit" disabled={saving} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{saving ? "Saving..." : enquiry ? "Save changes" : "Create enquiry"}</button></div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function EnquiriesPage({ enquiries, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAdd, onEdit, onDelete }) {
+            const [search, setSearch] = useState("");
+            const filtered = enquiries.filter(enquiry => {
+                const haystack = `${enquiry.customer?.name || ""} ${enquiry.property?.name || ""} ${enquiry.budgetRange || ""}`.toLocaleLowerCase();
+                return haystack.includes(search.trim().toLocaleLowerCase());
+            });
+            const statusStyle = { ACTIVE: "bg-blue-100 text-blue-800", RESPONDED: "bg-green-100 text-green-800", CLOSED: "bg-gray-100 text-gray-700", FOLLOW_UP_REQUIRED: "bg-yellow-100 text-yellow-800" };
+            const formatDate = value => {
+                if (!value) return "—";
+                const date = new Date(/(?:Z|[+-]\d{2}:\d{2})$/i.test(value) ? value : `${value}+05:30`);
+                return date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+            };
+            return (
+                <section>
+                    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-1 text-sm font-medium text-blue-600">ENQUIRIES</p><h2 className="text-2xl font-bold text-gray-900">Property enquiries</h2><p className="mt-1 text-sm text-gray-500">{totalElements} {totalElements === 1 ? "enquiry" : "enquiries"} in your CRM</p></div><button onClick={onAdd} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700"><span className="text-lg leading-none">+</span> Add enquiry</button></div>
+                    <div className="mb-4"><label htmlFor="enquiry-search" className="sr-only">Search current enquiry page</label><input id="enquiry-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search this page by customer, property, or budget..." className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm sm:max-w-md" /></div>
+                    {error ? <div className="rounded-lg border border-red-200 bg-white p-8 text-center"><h3 className="mb-2 font-semibold text-gray-900">Enquiries could not be loaded</h3><p className="mb-4 text-sm text-gray-600">{error}</p><button onClick={onRetry} className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Try again</button></div>
+                        : loading ? <div className="rounded-lg bg-white p-12 text-center text-gray-600">Loading enquiries...</div>
+                        : filtered.length === 0 ? <div className="rounded-lg bg-white p-12 text-center"><h3 className="mb-2 text-lg font-semibold text-gray-900">{enquiries.length ? "No matching enquiries" : "No enquiries yet"}</h3><p className="text-sm text-gray-500">{enquiries.length ? "Try a different search." : "Add an enquiry to track customer interest in a property."}</p></div>
+                        : <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead className="bg-gray-50"><tr>{["Customer", "Property", "Enquiry date", "Budget", "Status", "Requirements", "Actions"].map(label => <th key={label} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{filtered.map(enquiry => <tr key={enquiry.id} className="hover:bg-gray-50"><td className="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900">{enquiry.customer?.name || "—"}</td><td className="px-4 py-4 text-sm text-gray-700">{enquiry.property?.name || enquiry.property?.locality || "—"}</td><td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600">{formatDate(enquiry.enquiryDate)}</td><td className="whitespace-nowrap px-4 py-4 text-sm text-gray-600">{enquiry.budgetRange || "—"}</td><td className="whitespace-nowrap px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-medium ${statusStyle[enquiry.status] || statusStyle.ACTIVE}`}>{(enquiry.status || "ACTIVE").replaceAll("_", " ")}</span></td><td className="max-w-xs truncate px-4 py-4 text-sm text-gray-600" title={enquiry.requirements || ""}>{enquiry.requirements || "—"}</td><td className="whitespace-nowrap px-4 py-4 text-right"><div className="inline-flex gap-2"><button onClick={() => onEdit(enquiry)} title="Edit enquiry" className="rounded p-1 text-blue-700 hover:bg-blue-50" aria-label={`Edit enquiry for ${enquiry.customer?.name || "customer"}`}>✎</button><button onClick={() => onDelete(enquiry.id)} title="Delete enquiry" className="rounded p-1 text-red-700 hover:bg-red-50" aria-label={`Delete enquiry ${enquiry.id}`}>⌫</button></div></td></tr>)}</tbody></table></div>{totalPages > 1 && <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3"><span className="text-sm text-gray-500">Page {page + 1} of {totalPages}</span><div className="flex gap-2"><button onClick={() => onPageChange(page - 1)} disabled={page === 0} className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-40">Previous</button><button onClick={() => onPageChange(page + 1)} disabled={page + 1 >= totalPages} className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-40">Next</button></div></div>}</div>}
+                </section>
+            );
+        }
+
         function CustomersPage({ customers, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAddCustomer, onEditCustomer, onDeleteCustomer, search, setSearch }) {
             const statusRowStyles = { DEAL_DONE: "bg-green-50 hover:bg-green-100", DEAL_NOT_DONE: "bg-red-50 hover:bg-red-100", ACTIVE: "bg-blue-50 hover:bg-blue-100" };
             const filteredCustomers = customers.filter(customer => (customer.name || "").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
@@ -1946,6 +2066,16 @@
             );
         }
 
+        function DashboardActionTile({ title, description, onClick, icon, gradient }) {
+            return (
+                <button type="button" onClick={onClick} style={{ backgroundImage: gradient }} className="group flex h-[92px] items-center gap-3 rounded-2xl p-4 text-left text-white shadow-lg transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">{icon}</span>
+                    <span className="min-w-0 flex-1"><span className="block text-base font-bold">{title}</span><span className="mt-1 block text-xs leading-snug text-white/85">{description}</span></span>
+                    <svg className="h-4 w-4 shrink-0 opacity-70 transition group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14m-6-6 6 6-6 6" /></svg>
+                </button>
+            );
+        }
+
         // Dashboard Component (only rendered when authenticated)
         // App: Main component with authentication and dashboard
         function App() {
@@ -1956,6 +2086,7 @@
             const [editingProperty, setEditingProperty] = useState(null);
             const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
             const [activePage, setActivePage] = useState("home");
+            const [showDashboardActions, setShowDashboardActions] = useState(false);
             const [customers, setCustomers] = useState([]);
             const [customersLoading, setCustomersLoading] = useState(false);
             const [customersError, setCustomersError] = useState("");
@@ -1989,6 +2120,15 @@
             const [editingFollowUp, setEditingFollowUp] = useState(null);
             const [followUpSaving, setFollowUpSaving] = useState(false);
             const [followUpFormError, setFollowUpFormError] = useState("");
+            const [enquiries, setEnquiries] = useState([]);
+            const [enquiriesLoading, setEnquiriesLoading] = useState(false);
+            const [enquiriesError, setEnquiriesError] = useState("");
+            const [enquiryPage, setEnquiryPage] = useState(0);
+            const [enquiryPageInfo, setEnquiryPageInfo] = useState({ totalPages: 0, totalElements: 0 });
+            const [showEnquiryForm, setShowEnquiryForm] = useState(false);
+            const [editingEnquiry, setEditingEnquiry] = useState(null);
+            const [enquirySaving, setEnquirySaving] = useState(false);
+            const [enquiryFormError, setEnquiryFormError] = useState("");
 
             const handleLogin = () => setAuthenticated(true);
 
@@ -2033,6 +2173,12 @@
                     fetchFollowUps();
                 }
             }, [authenticated, activePage]);
+
+            useEffect(() => {
+                if (authenticated && activePage === "enquiries") {
+                    fetchEnquiries(enquiryPage);
+                }
+            }, [authenticated, activePage, enquiryPage]);
 
             const fetchCustomers = async (page) => {
                 const controller = new AbortController();
@@ -2159,6 +2305,33 @@
                     setFollowUpsError(error.message || "Check the connection to the backend and try again.");
                 } finally {
                     setFollowUpsLoading(false);
+                }
+            };
+
+            const fetchEnquiries = async (page = enquiryPage) => {
+                setEnquiriesLoading(true);
+                setEnquiriesError("");
+                try {
+                    const query = new URLSearchParams({ page: String(page), size: "10", sortBy: "enquiryDate", sortDir: "desc" });
+                    const response = await apiFetch(`${API_BASE_URL}/api/property-enquiries?${query}`, {
+                        headers: { "Content-Type": "application/json" }
+                    });
+                    if (!response.ok) throw new Error(`The server returned error ${response.status}.`);
+                    const data = await response.json();
+                    const rows = Array.isArray(data) ? data : data.content;
+                    if (!Array.isArray(rows)) throw new Error("The server returned enquiry data in an unexpected format.");
+                    setEnquiries(rows);
+                    setEnquiryPageInfo({
+                        totalPages: Number.isFinite(data.totalPages) ? data.totalPages : (rows.length ? 1 : 0),
+                        totalElements: Number.isFinite(data.totalElements) ? data.totalElements : rows.length
+                    });
+                    if (customers.length === 0) fetchCustomers(0);
+                    if (properties.length === 0) fetchProperties();
+                } catch (error) {
+                    setEnquiries([]);
+                    setEnquiriesError(error.message || "Check the connection to the backend and try again.");
+                } finally {
+                    setEnquiriesLoading(false);
                 }
             };
 
@@ -2473,6 +2646,57 @@
                 }
             };
 
+            const handleAddEnquiry = () => {
+                setEditingEnquiry(null);
+                setEnquiryFormError("");
+                setShowEnquiryForm(true);
+            };
+
+            const handleEditEnquiry = (enquiry) => {
+                setEditingEnquiry(enquiry);
+                setEnquiryFormError("");
+                setShowEnquiryForm(true);
+            };
+
+            const handleSaveEnquiry = async (enquiryData) => {
+                setEnquirySaving(true);
+                setEnquiryFormError("");
+                try {
+                    const url = editingEnquiry ? `${API_BASE_URL}/api/property-enquiries/${editingEnquiry.id}` : `${API_BASE_URL}/api/property-enquiries`;
+                    const response = await apiFetch(url, {
+                        method: editingEnquiry ? "PUT" : "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            ...enquiryData,
+                            customerId: Number(enquiryData.customerId),
+                            propertyId: Number(enquiryData.propertyId),
+                            enquiryDate: enquiryData.enquiryDate ? `${enquiryData.enquiryDate}:00` : null
+                        })
+                    });
+                    if (!response.ok) throw new Error(`The server could not save this enquiry (error ${response.status}).`);
+                    if (!editingEnquiry) setEnquiryPage(0);
+                    await fetchEnquiries(editingEnquiry ? enquiryPage : 0);
+                    setShowEnquiryForm(false);
+                    setEditingEnquiry(null);
+                } catch (error) {
+                    setEnquiryFormError(error.message || "The enquiry could not be saved. Check the connection and try again.");
+                } finally {
+                    setEnquirySaving(false);
+                }
+            };
+
+            const handleDeleteEnquiry = async (id) => {
+                if (!window.confirm("Are you sure you want to delete this enquiry?")) return;
+                try {
+                    const response = await apiFetch(`${API_BASE_URL}/api/property-enquiries/${id}`, { method: "DELETE" });
+                    if (!response.ok) throw new Error(`The server could not delete this enquiry (error ${response.status}).`);
+                    if (enquiries.length === 1 && enquiryPage > 0) setEnquiryPage(enquiryPage - 1);
+                    else await fetchEnquiries(enquiryPage);
+                } catch (error) {
+                    window.alert(error.message || "The enquiry could not be deleted.");
+                }
+            };
+
             // Filter properties based on selected filters
             const filteredProperties = useMemo(() => {
                 console.log('Filtering properties with filters:', filters);
@@ -2558,18 +2782,18 @@
 
             // Render dashboard if authenticated
             return (
-                <div className="min-h-screen bg-gray-100">
+                <div className="crm-background min-h-screen">
                     {/* Header */}
                     <header className="bg-white shadow-sm border-b border-gray-200">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h1 className="text-2xl font-bold text-gray-900">Masterkey Solutions</h1>
-                                    <p className="text-sm text-gray-500">{activePage === "home" ? "Real Estate CRM Dashboard" : activePage === "customers" || activePage === "addCustomer" ? "Customer management" : "Property search and management"}</p>
+                                    <p className="text-sm text-gray-500">{activePage === "home" ? "Real Estate CRM Dashboard" : activePage === "customers" || activePage === "addCustomer" || activePage === "editCustomer" ? "Customer management" : activePage === "enquiries" ? "Enquiry management" : "Property search and management"}</p>
                                 </div>
                                 <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                                     {activePage !== "home" && (
-                                        <button onClick={() => setActivePage("home")} className="px-4 py-2 border border-gray-300 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Back to dashboard</button>
+                                        <button onClick={() => { setActivePage("home"); setShowDashboardActions(false); }} className="px-4 py-2 border border-gray-300 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors">Back to dashboard</button>
                                     )}
                                     <button
                                         onClick={handleLogout}
@@ -2589,44 +2813,34 @@
                                 <div className="mb-7">
                                     <p className="text-sm font-semibold uppercase tracking-wider text-blue-600 mb-2">Workspace</p>
                                     <h2 className="text-3xl font-bold text-gray-900">Good to see you</h2>
-                                    <p className="text-gray-600 mt-2">Choose an area to continue managing your real estate business.</p>
+                                    <p className="text-gray-600 mt-2">Open Actions to choose where you want to work.</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-                                    <button onClick={() => setActivePage("properties")} className="group aspect-square rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-6 text-left text-white shadow-lg shadow-blue-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-300">
-                                        <div className="flex h-full flex-col">
-                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6" /></svg>
-                                            </span>
-                                            <span className="text-2xl font-bold">Properties</span>
-                                            <span className="mt-2 text-sm text-blue-100">Browse, filter, and manage listings</span>
-                                            <span className="mt-5 text-sm font-semibold">Open properties</span>
-                                        </div>
+                                {!showDashboardActions && <div className="flex flex-col items-center justify-center py-3">
+                                    <button type="button" aria-expanded="false" aria-controls="dashboard-actions" onClick={() => setShowDashboardActions(true)} className="group relative flex h-40 w-40 flex-col items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-900/25 ring-8 ring-white transition duration-300 hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-blue-300">
+                                        <span className="absolute inset-2 rounded-full border border-white/30 transition group-hover:inset-1" aria-hidden="true"></span>
+                                        <svg className="relative mb-2 h-8 w-8 transition duration-300 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                        <span className="relative text-xl font-bold tracking-wide">Actions</span>
+                                        <span className="relative mt-1 text-xs text-blue-100">Open workspace</span>
                                     </button>
+                                </div>}
 
-                                    <button onClick={() => setActivePage("customers")} className="group aspect-square rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 p-6 text-left text-white shadow-lg shadow-emerald-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-emerald-300">
-                                        <div className="flex h-full flex-col">
-                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                                            </span>
-                                            <span className="text-2xl font-bold">Customers</span>
-                                            <span className="mt-2 text-sm text-emerald-100">View and add customer contacts</span>
-                                            <span className="mt-5 text-sm font-semibold">Open customers</span>
-                                        </div>
+                                {showDashboardActions && <div id="dashboard-actions" className="mt-2 grid grid-cols-1 gap-3 animate-[fadeIn_180ms_ease-out] lg:grid-cols-[minmax(0,1fr)_112px_minmax(0,1fr)] lg:items-center">
+                                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                                    <DashboardActionTile title="Properties" description="Browse and manage listings" gradient="linear-gradient(135deg, #2563eb, #1e40af)" onClick={() => { setActivePage("properties"); setShowDashboardActions(false); }} icon={<svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9 20v-6h6v6" /></svg>} />
+
+                                    <DashboardActionTile title="Customers" description="Manage customer contacts" gradient="linear-gradient(135deg, #059669, #0f766e)" onClick={() => { setActivePage("customers"); setShowDashboardActions(false); }} icon={<svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>} />
+
+                                    <DashboardActionTile title="Leads" description="Track new opportunities" gradient="linear-gradient(135deg, #9333ea, #6b21a8)" onClick={() => { setActivePage("leads"); setShowDashboardActions(false); }} icon={<svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a4 4 0 0 0-5.2-3.82M17 20H7m10 0v-2c0-.72-.15-1.4-.42-2M7 20H2v-2a4 4 0 0 1 5.2-3.82M7 20v-2c0-.72.15-1.4.42-2m0 0a5 5 0 0 1 9.16 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm5 3a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM8 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" /></svg>} />
+
+                                    </div>
+                                    <button type="button" aria-expanded="true" aria-controls="dashboard-actions" onClick={() => setShowDashboardActions(false)} className="group order-first mx-auto flex h-24 w-24 flex-col items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 text-white shadow-xl shadow-blue-900/20 ring-4 ring-white transition duration-300 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 lg:order-none">
+                                        <svg className="mb-1 h-6 w-6 transition duration-300 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18 18 6M6 6l12 12" /></svg>
+                                        <span className="text-sm font-bold tracking-wide">Close</span>
                                     </button>
+                                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
 
-                                    <button onClick={() => setActivePage("leads")} className="group aspect-square rounded-2xl bg-gradient-to-br from-purple-600 to-purple-800 p-6 text-left text-white shadow-lg shadow-purple-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-purple-300">
-                                        <div className="flex h-full flex-col">
-                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a4 4 0 0 0-5.2-3.82M17 20H7m10 0v-2c0-.72-.15-1.4-.42-2M7 20H2v-2a4 4 0 0 1 5.2-3.82M7 20v-2c0-.72.15-1.4.42-2m0 0a5 5 0 0 1 9.16 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm5 3a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM8 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" /></svg>
-                                            </span>
-                                            <span className="text-2xl font-bold">Leads</span>
-                                            <span className="mt-2 text-sm text-purple-100">Keep track of new opportunities</span>
-                                            <span className="mt-5 text-sm font-semibold">Open leads</span>
-                                        </div>
-                                    </button>
-
-                                    <button onClick={() => setActivePage("siteVisits")} className="group aspect-square rounded-2xl bg-gradient-to-br from-orange-600 to-orange-800 p-6 text-left text-white shadow-lg shadow-orange-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-orange-300">
+                                    <button onClick={() => { setActivePage("siteVisits"); setShowDashboardActions(false); }} className="group min-h-[150px] rounded-2xl bg-gradient-to-br from-orange-600 to-orange-800 p-5 text-left text-white shadow-lg shadow-orange-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-orange-300">
                                         <div className="flex h-full flex-col">
                                             <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                                                 <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -2637,7 +2851,7 @@
                                         </div>
                                     </button>
 
-                                    <button onClick={() => setActivePage("followUps")} className="group aspect-square rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-700 p-6 text-left text-white shadow-lg shadow-yellow-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-yellow-300">
+                                    <button onClick={() => { setActivePage("followUps"); setShowDashboardActions(false); }} className="group min-h-[150px] rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-700 p-5 text-left text-white shadow-lg shadow-yellow-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-yellow-300">
                                         <div className="flex h-full flex-col">
                                             <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
                                                 <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l2.5 2.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -2647,25 +2861,49 @@
                                             <span className="mt-5 text-sm font-semibold">Open follow-ups</span>
                                         </div>
                                     </button>
-                                </div>
 
-                                <section className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/70 p-5 sm:p-6">
+                                    <button onClick={() => { setActivePage("enquiries"); setShowDashboardActions(false); }} className="group min-h-[150px] rounded-2xl bg-gradient-to-br from-cyan-600 to-sky-800 p-5 text-left text-white shadow-lg shadow-cyan-900/10 transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-cyan-300">
+                                        <div className="flex h-full flex-col">
+                                            <span className="mb-auto inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                                                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
+                                            </span>
+                                            <span className="text-2xl font-bold">Enquiries</span>
+                                            <span className="mt-2 text-sm text-cyan-100">Track property interest and customer requirements</span>
+                                            <span className="mt-5 text-sm font-semibold">Open enquiries</span>
+                                        </div>
+                                    </button>
+                                </div>
+                                </div>}
+
+                                {showDashboardActions && <section className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/70 p-5 sm:p-6">
                                     <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                                         <div>
                                             <p className="text-xs font-bold uppercase tracking-wider text-blue-700">Quick actions</p>
                                             <h3 className="mt-1 text-lg font-semibold text-gray-900">Add something new</h3>
-                                            <p className="mt-1 text-sm text-gray-600">Create a listing or save a customer contact.</p>
+                                            <p className="mt-1 text-sm text-gray-600">Create a record directly in any workspace area.</p>
                                         </div>
-                                        <div className="flex flex-col sm:flex-row gap-3">
-                                            <button onClick={handleAddProperty} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-blue-200 transition hover:bg-blue-600 hover:text-white hover:ring-blue-600">
+                                        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                            <button onClick={() => { setShowDashboardActions(false); handleAddProperty(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-blue-200 transition hover:bg-blue-600 hover:text-white hover:ring-blue-600">
                                                 <span className="text-lg leading-none">+</span> Add property
                                             </button>
-                                            <button onClick={() => { setCustomerFormError(""); setActivePage("addCustomer"); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200 transition hover:bg-emerald-600 hover:text-white hover:ring-emerald-600">
+                                            <button onClick={() => { setShowDashboardActions(false); setCustomerFormError(""); setActivePage("addCustomer"); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200 transition hover:bg-emerald-600 hover:text-white hover:ring-emerald-600">
                                                 <span className="text-lg leading-none">+</span> Add customer
+                                            </button>
+                                            <button onClick={() => { setShowDashboardActions(false); setActivePage("leads"); handleAddLead(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-purple-700 shadow-sm ring-1 ring-purple-200 transition hover:bg-purple-600 hover:text-white hover:ring-purple-600">
+                                                <span className="text-lg leading-none">+</span> Add lead
+                                            </button>
+                                            <button onClick={() => { setShowDashboardActions(false); setActivePage("siteVisits"); handleAddSiteVisit(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-orange-700 shadow-sm ring-1 ring-orange-200 transition hover:bg-orange-600 hover:text-white hover:ring-orange-600">
+                                                <span className="text-lg leading-none">+</span> Schedule site visit
+                                            </button>
+                                            <button onClick={() => { setShowDashboardActions(false); setActivePage("followUps"); handleAddFollowUp(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-amber-700 shadow-sm ring-1 ring-amber-200 transition hover:bg-amber-500 hover:text-white hover:ring-amber-500">
+                                                <span className="text-lg leading-none">+</span> Schedule follow-up
+                                            </button>
+                                            <button onClick={() => { setShowDashboardActions(false); setActivePage("enquiries"); handleAddEnquiry(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-cyan-700 shadow-sm ring-1 ring-cyan-200 transition hover:bg-cyan-600 hover:text-white hover:ring-cyan-600">
+                                                <span className="text-lg leading-none">+</span> Add enquiry
                                             </button>
                                         </div>
                                     </div>
-                                </section>
+                                </section>}
                             </div>
                         ) : activePage === "customers" ? (
                             <CustomersPage
@@ -2730,6 +2968,20 @@
                                 onDeleteFollowUp={handleDeleteFollowUp}
                                 filters={followUpFilters}
                                 setFilters={setFollowUpFilters}
+                            />
+                        ) : activePage === "enquiries" ? (
+                            <EnquiriesPage
+                                enquiries={enquiries}
+                                loading={enquiriesLoading}
+                                error={enquiriesError}
+                                page={enquiryPage}
+                                totalPages={enquiryPageInfo.totalPages}
+                                totalElements={enquiryPageInfo.totalElements}
+                                onPageChange={setEnquiryPage}
+                                onRetry={() => fetchEnquiries(enquiryPage)}
+                                onAdd={handleAddEnquiry}
+                                onEdit={handleEditEnquiry}
+                                onDelete={handleDeleteEnquiry}
                             />
                         ) : <>
                         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2846,11 +3098,24 @@
                         />
                     )}
 
+                    {showEnquiryForm && (
+                        <EnquiryForm
+                            key={editingEnquiry?.id || "new-enquiry"}
+                            enquiry={editingEnquiry}
+                            customers={customers}
+                            properties={properties}
+                            onSave={handleSaveEnquiry}
+                            onCancel={() => { setShowEnquiryForm(false); setEditingEnquiry(null); setEnquiryFormError(""); }}
+                            saving={enquirySaving}
+                            error={enquiryFormError}
+                        />
+                    )}
+
                     {/* Footer */}
                     <footer className="bg-white border-t border-gray-200 mt-12">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                             <p className="text-center text-sm text-gray-500">
-                                © 2024 Real Estate CRM. Admin Dashboard for Pimpri-Chinchwad Properties.
+                                © 2026 Real Estate CRM. Admin Dashboard for Pimpri-Chinchwad Properties.
                             </p>
                         </div>
                     </footer>

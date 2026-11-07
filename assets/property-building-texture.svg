@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="facade" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#c4d7eb"/>
+      <stop offset="1" stop-color="#a9bfd8"/>
+    </linearGradient>
+    <pattern id="windows" width="46" height="54" patternUnits="userSpaceOnUse">
+      <rect x="12" y="12" width="18" height="26" rx="2" fill="#7898b8" fill-opacity=".22"/>
+    </pattern>
+  </defs>
+  <g fill="url(#facade)" fill-opacity=".18" stroke="#7898b8" stroke-opacity=".14" stroke-width="3">
+    <path d="M36 900V390l78-54 79 54v-84l82-58 82 58v594z"/>
+    <path d="M1160 900V330l92-66 92 66v-92l98-70 98 70v662z"/>
+    <path d="M495 900V610l72-48 72 48v-85l80-54 80 54v-64l74-50 74 50v489z" fill-opacity=".09"/>
+  </g>
+  <g fill="url(#windows)" opacity=".75">
+    <path d="M36 390l78-54 79 54v510H36z"/>
+    <path d="M275 306l82-58 82 58v594H275z"/>
+    <path d="M1160 330l92-66 92 66v570h-184z"/>
+    <path d="M1436 172l98 70 98-70v728h-196z"/>
+    <path d="M495 610l72-48 72 48v290H495z"/>
+    <path d="M719 525l80-54 80 54v375H719z"/>
+    <path d="M873 461l74-50 74 50v439H873z"/>
+  </g>
+  <g fill="none" stroke="#7898b8" stroke-opacity=".12" stroke-width="3">
+    <path d="M0 900h1600M112 390v510m245-594v594m895-570v570m282-658v658"/>
+    <path d="M30 730h450M1150 690h450M490 790h620"/>
+  </g>
+</svg>
