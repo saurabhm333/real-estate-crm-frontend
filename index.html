@@ -148,17 +148,15 @@
         const istInputToISO = (value) => value ? new Date(`${value}:00+05:30`).toISOString() : null;
 
         // Authentication utilities
-        const UI_PREVIEW_MODE = true; // TEMPORARY: turn off after UI review is confirmed.
         const getAuthToken = () => sessionStorage.getItem('authToken');
         const setAuthToken = (token) => sessionStorage.setItem('authToken', token);
         const removeAuthToken = () => sessionStorage.removeItem('authToken');
         // Discard tokens from the former persistent localStorage-based login.
         localStorage.removeItem('authToken');
-        const isAuthenticated = () => UI_PREVIEW_MODE || !!getAuthToken();
+        const isAuthenticated = () => !!getAuthToken();
 
         // All CRM API calls go through this wrapper. The signin request deliberately uses fetch directly.
         const apiFetch = async (url, options = {}) => {
-            if (UI_PREVIEW_MODE) throw new Error('API requests are disabled during the temporary UI preview.');
             if (!API_BASE_URL) throw new Error('Backend URL is not configured. Set window.REAL_ESTATE_API_BASE_URL or API_BASE_URL.');
             const headers = new Headers(options.headers || {});
             const token = getAuthToken();
