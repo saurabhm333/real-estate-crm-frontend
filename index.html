@@ -1996,13 +1996,16 @@
         function CustomersPage({ customers, loading, error, page, totalPages, totalElements, onPageChange, onRetry, onAddCustomer, onEditCustomer, onDeleteCustomer, search, setSearch }) {
             const statusRowStyles = { DEAL_DONE: "bg-green-50 hover:bg-green-100", DEAL_NOT_DONE: "bg-red-50 hover:bg-red-100", ACTIVE: "bg-blue-50 hover:bg-blue-100" };
             const filteredCustomers = customers.filter(customer => (customer.name || "").toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+            const pageSize = 10;
+            const visibleCustomers = filteredCustomers.slice(page * pageSize, (page + 1) * pageSize);
+            const filteredTotalPages = Math.ceil(filteredCustomers.length / pageSize);
             return (
                 <section>
                     <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
                         <div>
                             <p className="text-sm font-medium text-blue-600 mb-1">CUSTOMERS</p>
                             <h2 className="text-2xl font-bold text-gray-900">All customers</h2>
-                            {!loading && !error && <p className="text-sm text-gray-500 mt-1">{totalElements} {totalElements === 1 ? "customer" : "customers"} in your CRM</p>}
+                            {!loading && !error && <p className="text-sm text-gray-500 mt-1">{search.trim() ? `${filteredCustomers.length} matching ` : `${totalElements} `}{(search.trim() ? filteredCustomers.length : totalElements) === 1 ? "customer" : "customers"} in your CRM</p>}
                         </div>
                         <button onClick={onAddCustomer} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-900/10 transition hover:bg-emerald-700">
                             <span className="text-lg leading-none">+</span> Add customer
@@ -2037,7 +2040,7 @@
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {filteredCustomers.map((customer) => (
+                                        {visibleCustomers.map((customer) => (
                                             <tr key={customer.id} className={statusRowStyles[customer.status] || statusRowStyles.ACTIVE}>
                                                 <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{customer.name}</td>
                                                 <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-600">{customer.email || "—"}</td>
@@ -2049,12 +2052,12 @@
                                     </tbody>
                                 </table>
                             </div>
-                            {totalPages > 1 && (
+                            {filteredTotalPages > 1 && (
                                 <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3">
-                                    <span className="text-sm text-gray-500">Page {page + 1} of {totalPages}</span>
+                                    <span className="text-sm text-gray-500">Page {page + 1} of {filteredTotalPages}</span>
                                     <div className="flex gap-2">
                                         <button onClick={() => onPageChange(page - 1)} disabled={page === 0} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Previous</button>
-                                        <button onClick={() => onPageChange(page + 1)} disabled={page + 1 >= totalPages} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Next</button>
+                                        <button onClick={() => onPageChange(page + 1)} disabled={page + 1 >= filteredTotalPages} className="px-3 py-1.5 border border-gray-300 text-sm rounded disabled:opacity-40 hover:bg-gray-50">Next</button>
                                     </div>
                                 </div>
                             )}
@@ -2152,7 +2155,7 @@
                 if (authenticated && activePage === "customers") {
                     fetchCustomers(customerPage);
                 }
-            }, [authenticated, activePage, customerPage]);
+            }, [authenticated, activePage]);
 
             useEffect(() => {
                 if (authenticated && activePage === "leads") {
@@ -2184,23 +2187,40 @@
                 setCustomersLoading(true);
                 setCustomersError("");
                 try {
-                    const query = new URLSearchParams({ page: String(page), size: "10", sortBy: "name", sortDir: "asc" });
-                    const response = await apiFetch(`${API_BASE_URL}/api/customers?${query}`, {
-                        headers: { "Content-Type": "application/json" },
-                        signal: controller.signal
-                    });
-                    if (!response.ok) {
-                        throw new Error(`The server returned error ${response.status}.`);
+                    const fetchPage = async (pageNumber) => {
+                        const query = new URLSearchParams({ page: String(pageNumber), size: "10", sortBy: "name", sortDir: "asc" });
+                        const response = await apiFetch(`${API_BASE_URL}/api/customers?${query}`, {
+                            headers: { "Content-Type": "application/json" },
+                            signal: controller.signal
+                        });
+                        if (!response.ok) throw new Error(`The server returned error ${response.status}.`);
+                        const data = await response.json();
+                        const rows = Array.isArray(data) ? data : data.content;
+                        if (!Array.isArray(rows)) throw new Error("The server returned customer data in an unexpected format.");
+                        return { data, rows };
+                    };
+                    const firstPage = await fetchPage(0);
+                    const hasPageCount = Number.isFinite(firstPage.data.totalPages);
+                    const hasTotalCount = Number.isFinite(firstPage.data.totalElements);
+                    const totalPages = hasPageCount
+                        ? firstPage.data.totalPages
+                        : hasTotalCount ? Math.ceil(firstPage.data.totalElements / 10) : null;
+                    let remainingPages;
+                    if (totalPages !== null) {
+                        remainingPages = await Promise.all(Array.from({ length: Math.max(0, totalPages - 1) }, (_, index) => fetchPage(index + 1)));
+                    } else {
+                        remainingPages = [];
+                        for (let pageNumber = 1; ; pageNumber++) {
+                            const nextPage = await fetchPage(pageNumber);
+                            remainingPages.push(nextPage);
+                            if (nextPage.rows.length < 10) break;
+                        }
                     }
-                    const data = await response.json();
-                    const rows = Array.isArray(data) ? data : data.content;
-                    if (!Array.isArray(rows)) {
-                        throw new Error("The server returned customer data in an unexpected format.");
-                    }
-                    setCustomers(rows);
+                    const allRows = [firstPage.rows, ...remainingPages.map(result => result.rows)].flat();
+                    setCustomers(allRows);
                     setCustomerPageInfo({
-                        totalPages: Number.isFinite(data.totalPages) ? data.totalPages : (rows.length ? 1 : 0),
-                        totalElements: Number.isFinite(data.totalElements) ? data.totalElements : rows.length
+                        totalPages: totalPages ?? remainingPages.length + 1,
+                        totalElements: Number.isFinite(firstPage.data.totalElements) ? firstPage.data.totalElements : allRows.length
                     });
                 } catch (error) {
                     setCustomers([]);
@@ -2231,9 +2251,7 @@
                     setLeads(rows);
 
                     // Also fetch customers and properties for the form dropdowns
-                    if (customers.length === 0) {
-                        fetchCustomers(0);
-                    }
+                    fetchCustomers(0);
                     if (properties.length === 0) {
                         fetchProperties();
                     }
@@ -2323,7 +2341,7 @@
                         totalPages: Number.isFinite(data.totalPages) ? data.totalPages : (rows.length ? 1 : 0),
                         totalElements: Number.isFinite(data.totalElements) ? data.totalElements : rows.length
                     });
-                    if (customers.length === 0) fetchCustomers(0);
+                    fetchCustomers(0);
                     if (properties.length === 0) fetchProperties();
                 } catch (error) {
                     setEnquiries([]);
@@ -2917,7 +2935,7 @@
                                 onEditCustomer={(customer) => { setEditingCustomer(customer); setCustomerFormError(""); setActivePage("editCustomer"); }}
                                 onDeleteCustomer={handleDeleteCustomer}
                                 search={customerSearch}
-                                setSearch={setCustomerSearch}
+                                setSearch={(value) => { setCustomerSearch(value); setCustomerPage(0); }}
                             />
                         ) : activePage === "addCustomer" || activePage === "editCustomer" ? (
                             <CustomerForm
